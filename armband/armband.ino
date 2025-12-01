@@ -24,6 +24,7 @@ const int ledAlertPin = 3;
 
 //Buzzer
 const int alertBuzzerPin = 2;
+const int geigerBuzzerPin = 12;
 
 /* -----------------------------
    Global Variables
@@ -31,15 +32,19 @@ const int alertBuzzerPin = 2;
 int radiation = 90;
 
 // --- Debounce ---
-unsigned long debounceDelay = 50;
-
-// Jede Taste hat jetzt eigene Variablen
+unsigned long debounceDelay = 100;
 int lastReadingStart = LOW;
 int lastReadingPause = LOW;
 int lastReadingReset = LOW;
 unsigned long lastChangeStart = 0;
 unsigned long lastChangePause = 0;
 unsigned long lastChangeReset = 0;
+
+// Geiger Click Logic
+unsigned long lastGeigerClick = 0;
+unsigned long geigerPulseStart = 0;
+bool geigerPulseActive = false;
+const unsigned long geigerPulseLength = 2;
 
 // Countdown
 unsigned long countdownMillis = 1200000UL;
@@ -239,6 +244,34 @@ void countdown() {
 -----------------------------------------------------------*/
 void geiger() {
     moveGeiger();
+    geigerClickLogic();
+}
+
+void geigerClickLogic() {
+    unsigned long now = millis();
+
+    // --- 1) Wenn ein Klick aktiv ist → Pulse beenden ---
+    if (geigerPulseActive) {
+        if (now - geigerPulseStart >= geigerPulseLength) {
+            noTone(geigerBuzzerPin);
+            geigerPulseActive = false;
+        }
+        return;
+    }
+
+    // --- 2) Klick-Wahrscheinlichkeit abhängig vom radiation Wert ---
+    // radiation: 0..180
+    // wir mappen das auf eine Klick-Wahrscheinlichkeit pro Loop
+    int probability = map(radiation, 0, 180, 1, 40);
+    // Wert ist konservativ — 40 = viel Geknister
+
+    // Jede Iteration hat eine Chance auf einen Klick
+    if (random(1000) < probability) {
+        // Start des Klicks
+        tone(geigerBuzzerPin, 6000);  // sehr kurzer hoher Klick
+        geigerPulseActive = true;
+        geigerPulseStart = now;
+    }
 }
 
 /* ----------------------------------------------------------
@@ -259,11 +292,11 @@ void setup() {
     pinMode(buttonTimerResetPin, INPUT);
 
     pinMode(alertBuzzerPin, OUTPUT);
+    pinMode(geigerBuzzerPin, OUTPUT);
 
     digitalWrite(ledFinePin, LOW);
     digitalWrite(ledDangerPin, LOW);
     digitalWrite(ledAlertPin, LOW);
-    Serial.println("Hello");
 }
 
 void loop() {
