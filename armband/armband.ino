@@ -7,6 +7,7 @@
 const int potRadiationPin = A0;
 
 // Buttons
+const int buttonOxygenBreakPin = 11;
 const int buttonTimerStartPin = 10;
 const int buttonTimerPausePin = 9;
 const int buttonTimerResetPin = 8;
