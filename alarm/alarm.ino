@@ -13,7 +13,7 @@ void setup() {
   mySerial.begin(9600);
 
   Serial.println("=== DFPlayer Mini Test ===");
-
+  delay(5000);
   // DFPlayer initialisieren
   if (!myDFPlayer.begin(mySerial)) {
     Serial.println("Error: DFPlayer konnte nicht initialisiert werden!");

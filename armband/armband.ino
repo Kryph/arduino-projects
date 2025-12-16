@@ -8,6 +8,7 @@ const int potRadiationPin = A0;
 
 // Buttons
 const int buttonOxygenBreakPin = 11;
+
 const int buttonTimerStartPin = 10;
 const int buttonTimerPausePin = 9;
 const int buttonTimerResetPin = 8;
@@ -37,15 +38,17 @@ unsigned long debounceDelay = 100;
 int lastReadingStart = LOW;
 int lastReadingPause = LOW;
 int lastReadingReset = LOW;
+int lastReadingOxy = LOW;
 unsigned long lastChangeStart = 0;
 unsigned long lastChangePause = 0;
 unsigned long lastChangeReset = 0;
+unsigned long lastChangeOxy = 0;
 
 // Geiger Click Logic
 unsigned long lastGeigerClick = 0;
 unsigned long geigerPulseStart = 0;
 bool geigerPulseActive = false;
-const unsigned long geigerPulseLength = 2;
+const unsigned long geigerPulseLength = 5;
 
 // Countdown
 unsigned long countdownMillis = 1200000UL;
@@ -83,7 +86,7 @@ void gaussianRadiation(int potRadiationValue, int range) {
    Move servos
 -----------------------------------------------------------*/
 void moveGeiger(){
-    gaussianRadiation(analogRead(potRadiationPin), 0);
+    gaussianRadiation(analogRead(potRadiationPin), 20);
     int servoAngle = radiation;
     
     servoAngle = constrain(servoAngle, 0, 180);
@@ -121,7 +124,7 @@ bool isPressed(int pin, int &lastReading, unsigned long &lastChange) {
 -----------------------------------------------------------*/
 void oxygenLeak(){
     if (!oxygenBottleWillBreak){
-        if (random(100) < 20) {
+        if (random(100) < 1) {
             oxygenBottleWillBreak = true;
             oxygenBreakTime = random( (resetMillis * 0.25), (resetMillis * 0.75) );
         }
@@ -171,7 +174,7 @@ void countdown() {
     // --- Start Button ---
     if (isPressed(buttonTimerStartPin, lastReadingStart, lastChangeStart)) {
         timerRunning = true;
-        oxygenLeak();
+        // oxygenLeak();
         Serial.println(">> TIMER START");
         if (oxygenBottleWillBreak) {
             Serial.print("!! Oxygen bottle scheduled to break at ms: ");
@@ -179,11 +182,18 @@ void countdown() {
         }
     }
 
+    // --- Oxy Break Button ---
+    if (isPressed(buttonOxygenBreakPin, lastReadingOxy, lastChangeOxy)) {
+        oxygenBottleWillBreak = true;
+        oxygenBreakTime = oxygenBreakTime = countdownMillis;
+        Serial.println(">> Oxygen leakage detected");
+    }
+    
     // --- Pause Button ---
     if (isPressed(buttonTimerPausePin, lastReadingPause, lastChangePause)) {
         timerRunning = false;
         oxygenBottleWillBreak = false;
-        Serial.println(">> TIMER Pause (oxygen reset)");
+        Serial.println(">> TIMER Pause");
     }
 
     // --- Reset Button ---
@@ -263,7 +273,10 @@ void geigerClickLogic() {
     // --- 2) Klick-Wahrscheinlichkeit abhängig vom radiation Wert ---
     // radiation: 0..180
     // wir mappen das auf eine Klick-Wahrscheinlichkeit pro Loop
-    int probability = map(radiation, 0, 180, 1, 40);
+    float r = 1 - radiation / 180.0;       // 0.0 – 1.0
+    int probability = pow(r, 3) * 40;  // 0 – 40, aber im Mittel viel weniger
+    probability = constrain(probability, 0, 40);
+
     // Wert ist konservativ — 40 = viel Geknister
 
     // Jede Iteration hat eine Chance auf einen Klick
@@ -291,6 +304,7 @@ void setup() {
     pinMode(buttonTimerStartPin, INPUT);
     pinMode(buttonTimerPausePin, INPUT);
     pinMode(buttonTimerResetPin, INPUT);
+    pinMode(buttonOxygenBreakPin, INPUT);
 
     pinMode(alertBuzzerPin, OUTPUT);
     pinMode(geigerBuzzerPin, OUTPUT);
