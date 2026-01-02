@@ -1,7 +1,7 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <TM1637Display.h>
-#include <RTClib.h>
+#include <DS1302.h>
 
 
 /* -----------------------------
@@ -28,6 +28,8 @@ const int shiftLatchPin = 9;
 // Fan [via NPN - not directly pinned]
 const int fanPin = 10;
 
+// DS1302 Real Clock
+DS1302 rtc(11, 12, 13); // CLK, DAT, RST
 
 /* -----------------------------
    Global Variables
@@ -55,8 +57,8 @@ unsigned long nextShakeInterval = 0;
 
 // Real Time Clock
 RTC_DS3231 rtc;
-#define CLK 2
-#define DIO 3
+#define CLK A1
+#define DIO A2
 TM1637Display tmDisplay(CLK, DIO);
 bool rtcAvailable = true;
 unsigned long startMillis = 0;
@@ -101,20 +103,21 @@ void setup() {
     randomSeed(analogRead(A0));
 
     Serial.begin(9600);
+
     tmDisplay.setBrightness(0x0f);
 
-    if (!rtc.begin()) {
-        rtcAvailable = false;
-        Serial.println("RTC nicht gefunden! Zeitanzeige auf Millis-Basis.");
-        startMillis = millis();
-    }
+    rtc.halt(false); 
+    rtc.writeProtect(false);  
+
 
     nextShakeInterval = random(5000, 20000);
     bootSequence();
+
     lcd.print("LUFTFILTERSYSTEM");
     lcd.setCursor(0, 1);
     lcd.print("Bereit");
 }
+
 
 /* ----------------------------------------------------------
    Main Loop
@@ -246,7 +249,7 @@ void systemErrorScreen() {
     lcd.print("SYSTEMFEHLER");
     lcd.setCursor(0, 1);
     lcd.print("!!! KRITISCH !!!");
-    delay(2000)
+    delay(2000);
 
     switch(currentMode) {
         case MODE_IDLE:
@@ -354,7 +357,7 @@ void checkAir() {
     int result = random(0, 3);
     if (result == 0) lcd.print("OPTIMAL");
     if (result == 1) lcd.print("OK");
-    if (result == 1) lcd.print("LEICHT TOXISCH");
+    if (result == 2) lcd.print("LEICHT TOXISCH");
 
     beep(result == 2 ? 300 : 1000, 300);
     delay(1600);
@@ -505,19 +508,20 @@ void updateFlicker() {
 }
 
 void displayTime() {
-    int displayTime; 
-    bool showColon = true;
+    int displayTime;
 
-    if (rtcAvailable) {
-        DateTime now = rtc.now();
-        displayTime = now.hour() * 100 + now.minute();
-    } 
-    else {
-        unsigned long elapsedSeconds = (millis() - startMillis) / 1000;
+    if (rtc.isHalted()) {
+        unsigned long elapsedSeconds = millis() / 1000;
         int minutes = elapsedSeconds % 60;
         int hours = (elapsedSeconds / 60) % 24;
         displayTime = hours * 100 + minutes;
+    } else {
+        Time t = rtc.time();
+        displayTime = t.hr * 100 + t.min;
     }
 
-    tmDisplay.showNumberDecEx(displayTime, 0b01000000, true); 
+    tmDisplay.showNumberDecEx(displayTime, 0b01000000, true);
+}
+
+
 }
